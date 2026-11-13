@@ -1,0 +1,16 @@
+# Throwaway experiments, VM images, payloads, dumps
+scratch/*
+!scratch/.gitkeep
+
+# Cloned repos are tracked in repos/INDEX.md, not committed here
+repos/*/
+!repos/INDEX.md
+
+# Loot / secrets — never commit
+*.pcap
+*.pcapng
+*.key
+*.pem
+.env
+*.kdbx
+loot/

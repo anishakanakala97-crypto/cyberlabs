@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Clone a GitHub repo into repos/ and record it in repos/INDEX.md.
+#
+#   ./bin/clone-repo <owner>/<repo> [purpose...]
+#   ./bin/clone-repo https://github.com/<owner>/<repo> [purpose...]
+#
+# Uses `gh repo clone` when available, otherwise plain `git clone`.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPOS="$ROOT/repos"
+INDEX="$REPOS/INDEX.md"
+
+if [ $# -lt 1 ]; then
+  echo "usage: $0 <owner>/<repo> [purpose]" >&2
+  exit 2
+fi
+
+ref="$1"; shift
+purpose="${*:-—}"
+
+# Normalise to owner/repo.
+ref="${ref%.git}"
+ref="${ref#https://github.com/}"
+ref="${ref#http://github.com/}"
+ref="${ref#git@github.com:}"
+if [[ "$ref" != */* ]]; then
+  echo "error: expected owner/repo, got '$ref'" >&2
+  exit 2
+fi
+
+owner="${ref%%/*}"
+name="${ref##*/}"
+target="$REPOS/$name"
+
+if [ -e "$target" ]; then
+  echo "error: $target already exists" >&2
+  exit 1
+fi
+
+mkdir -p "$REPOS"
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  gh repo clone "$owner/$name" "$target"
+else
+  git clone "https://github.com/$owner/$name.git" "$target"
+fi
+
+today="$(date +%Y-%m-%d)"
+src="https://github.com/$owner/$name"
+purpose="$(printf '%s' "$purpose" | tr '|' '/')"
+
+# Append a row, creating the table header if the index is still the stub.
+if ! grep -q '^| Repo ' "$INDEX" 2>/dev/null; then
+  mkdir -p "$REPOS"
+  printf '# Repository index\n\n| Repo | Source | Purpose | Cloned |\n| ---- | ------ | ------- | ------ |\n' > "$INDEX"
+fi
+# Drop the placeholder row on first real entry.
+sed -i '/^| — *| — *| — *| — *|$/d' "$INDEX"
+printf '| [%s](%s) | %s | %s | %s |\n' "$name" "$src" "$src" "$purpose" "$today" >> "$INDEX"
+
+echo "cloned $name -> $target"
+echo "indexed in $INDEX"
